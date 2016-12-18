@@ -1,0 +1,139 @@
+---
+heat_template_version: 2016-10-14
+
+parameters:
+  rhn-user:
+    type: string
+    label: Red Hat Network Username
+  rhn-pass:
+    type: string
+    label: Red Hat Network Password
+  rhel-pool:
+    type: string
+    label: RHEL Subscription Pool ID
+    default: 8a85f9874011071c01407da00b997cb2
+  sat-pool:
+    type: string
+    label: Satellite Subscription Pool ID
+    default: 8a85f9863f14fed3013f82b2c7b33615
+  org:
+    type: string
+    label: Organization
+    default: Red Hat
+  loc:
+    type: string
+    label: Location
+    default: Zurich
+  username:
+    type: string
+    label: Satellite Admin Username
+    default: admin
+  password:
+    type: string
+    label: Satellite Admin Password
+    default: admin
+  floating-ip:
+    type: string
+    label: Floating IP
+    default: 10.6.0.251
+  image:
+    type: string
+    label: Image
+    default: RHEL 7.3
+    constraints:
+      - custom_constraint: glance.image
+  key:
+    type: string
+    label: SSH Key
+    default: default
+    constraints:
+      - custom_constraint: nova.keypair
+  flavor:
+    type: string
+    label: Flavor
+    default: m1.xlarge
+    constraints:
+      - custom_constraint: nova.flavor
+  network:
+    type: string
+    label: Internal Network
+    default: redhat
+    constraints:
+      - custom_constraint: neutron.network
+  subnet:
+    type: string
+    label: Internal Subnet
+    default: redhat
+    constraints:
+      - custom_constraint: neutron.subnet
+  external_network:
+    type: string
+    label: External Network
+    default: external
+    constraints:
+      - custom_constraint: neutron.network
+
+resources:
+  port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: network }
+      security_groups:
+        - open
+      fixed_ips:
+        - subnet: { get_param: subnet }
+  floatingip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: external_network }
+      floating_ip_address: { get_param: floating-ip }
+      port_id: { get_resource: port }
+  volume:
+    type: OS::Cinder::Volume
+    properties:
+      name: Satellite
+      size: 250
+      image: { get_param: image }
+  satellite:
+    type: OS::Nova::Server
+    properties:
+      name: Satellite
+      flavor: { get_param: flavor }
+      key_name: { get_param: key }
+      block_device_mapping_v2:
+        - volume_id: { get_resource: volume }
+      networks:
+        - port: { get_resource: port }
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          params:
+            RHN_USER: { get_param: rhn-user }
+            RHN_PASS: { get_param: rhn-pass }
+            RHEL_POOL: { get_param: rhel-pool }
+            SAT_POOL: { get_param: sat-pool }
+            ORG: { get_param: org }
+            LOC: { get_param: loc }
+            USERNAME: { get_param: username }
+            PASSWORD: { get_param: password }
+          template: |
+            #!/bin/bash
+            set -x
+            set -e
+            subscription-manager register --username 'RHN_USER' \
+                                          --password 'RHN_PASS'
+            subscription-manager attach --pool 'RHEL_POOL'
+            subscription-manager attach --pool 'SAT_POOL'
+            subscription-manager repos --disable '*'
+            subscription-manager repos --enable rhel-7-server-rpms \
+                                       --enable rhel-server-rhscl-7-rpms \
+                                       --enable rhel-7-server-satellite-6.2-rpms
+            yum clean all
+            yum makecache
+            yum update -y
+            yum install -y satellite
+            satellite-installer --scenario satellite \
+                                --foreman-initial-organization 'ORG' \
+                                --foreman-initial-location 'LOC' \
+                                --foreman-admin-username 'USERNAME' \
+                                --foreman-admin-password 'PASSWORD'

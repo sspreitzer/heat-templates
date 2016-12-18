@@ -1,0 +1,30 @@
+---
+heat_template_version: 2016-10-14
+
+resources:
+  router:
+    type: OS::Neutron::Router
+    properties:
+      name: redhat
+      external_gateway_info:
+        network: external
+  network:
+    type: OS::Neutron::Net
+    properties:
+      name: redhat
+  subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: redhat
+      network: { get_resource: network }
+      subnetpool: default
+      prefixlen: 24
+      dns_nameservers:
+        - 8.8.8.8
+        - 8.8.4.4
+      enable_dhcp: true
+  admin-router-interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: router }
+      subnet: { get_resource: subnet }
