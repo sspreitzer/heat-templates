@@ -8,6 +8,11 @@ parameters:
   rhn-pass:
     type: string
     label: Red Hat Network Password
+  ## How to find out your pool IDs?
+  # subscription-manager register --auto-attach
+  # subscription-manager list --all > pools
+  # less pools
+  # subscription-manager unregister
   rhel-pool:
     type: string
     label: RHEL Subscription Pool ID
