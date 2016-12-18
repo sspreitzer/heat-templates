@@ -77,6 +77,12 @@ parameters:
     default: external
     constraints:
       - custom_constraint: neutron.network
+  security-group:
+    type: string
+    label: Security Group
+    default: default
+    constraints:
+      - custom_constraint: neutron.security_group
 
 resources:
   port:
@@ -84,7 +90,7 @@ resources:
     properties:
       network: { get_param: network }
       security_groups:
-        - open
+        - { get_param: security-group }
       fixed_ips:
         - subnet: { get_param: subnet }
   floatingip:
